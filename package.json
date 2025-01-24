@@ -1,0 +1,12 @@
+{
+  "name": "terminal-reminder",
+  "version": "1.0.0",
+  "description": "A ZSH script for managing project deadlines in terminal",
+  "main": "deadline.zsh",
+  "scripts": {
+    "test": "zsh deadline.zsh"
+  },
+  "keywords": ["zsh", "terminal", "deadline", "reminder"],
+  "author": "Wana Pichpongsa",
+  "license": "MIT"
+} 
