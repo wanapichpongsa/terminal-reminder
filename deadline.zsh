@@ -2,6 +2,10 @@
 
 # $ chmod +x deadline.zsh to make script executable then zsh deadline.zsh
 
+# TODO:
+# - How to store long-term memory i.e., store deadlines in a file?
+# - 
+
 # Get today's date
 today=$(date +%d/%m/%Y)
 
@@ -28,9 +32,9 @@ append_deadline_to_deadlines() {
     local deadline_parts=($(get_date "$deadline_date")) || return 1
 
     # Calculate time left (day, month, year)
-    local day_diff=$((deadline_parts[0] - today_parts[0]))
-    local month_diff=$((deadline_parts[1] - today_parts[1]))
-    local year_diff=$((deadline_parts[2] - today_parts[2]))
+    local day_diff=$((deadline_parts[1] - today_parts[1]))
+    local month_diff=$((deadline_parts[2] - today_parts[2]))
+    local year_diff=$((deadline_parts[3] - today_parts[3]))
 
     # Adjust for negative values
     if ((day_diff < 0)); then
