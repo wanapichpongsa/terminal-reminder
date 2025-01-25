@@ -82,10 +82,40 @@ append_deadline_to_deadlines() {
 		deadlines["$project_name"]="$day_diff $month_diff $year_diff"
 }
 
+# Display deadlines on terminal startup.
+display_deadlines() {
+    # if deadlines size > 0 ([@] access all keys, # sums total number of keys), then display deadlines
+    if [[ ${#deadlines[@]} -gt 0 ]]; then
+        echo "<< DEADLINE REMINDER >>"
+        for project in "${(@k)deadlines}"; do
+            local time_left=(${(s: :)deadlines[$project]}) # Syntax: (s: :) where s is split extension in zsh, ':' is string delimiter
+            local days=${time_left[1]}
+            local months=${time_left[2]}
+            local years=${time_left[3]}
+            # remove item from dict as soon as deadline passed
+            if ((days < 0)); then
+            unset "deadlines[$project]"
+            fi
+
+            # Construct output messages
+            local message="$project: "
+            ((years > 0)) && message+="$years Year(s) "
+            ((months > 0)) && message+="$months Month(s) "
+            ((days > 0)) && message+="$days Day(s) "
+            message+="Left"
+
+            echo $message
+        done
+    else
+        echo "No deadlines found."
+    fi
+}
+
 # Command-line interface for adding deadlines
 # global $1 (i.e., not $1 in functions) are direct inputs in cli :)
-interact="$1"
-if [[ $interact == "add-deadline" ]]; then
+if [[ $1 == "" ]]; then
+    display_deadlines
+elif [[ $1 == "add-deadline" ]]; then
     echo "<< ADD DEADLINE >>"
     # For some reason, read flags -p && -a don't work
     echo "Input your project and deadline in the format \"Project_Name DD/MM/YYYY\" (--finish to exit):"
@@ -105,41 +135,22 @@ if [[ $interact == "add-deadline" ]]; then
 
     # Append deadline
     append_deadline_to_deadlines "$project_name" "$deadline_date"
-elif [[ $interact == "remove-deadline" ]]; then
+    display_deadlines
+elif [[ $1 == "remove-deadline" ]]; then
     echo "<< REMOVE DEADLINE >>"
     echo "Input the project name to remove:"
     read project_name
     unset "deadlines[$project_name]"
+    display_deadlines
 else
     echo "Usage:"
-    echo "\$ zsh ~/.zshrc add-deadline"
-    echo "\$ zsh ~/.zshrc remove-deadline"
+    echo "Display deadlines: \$ zsh ~/.zshrc"
+    echo "Add deadlines: \$ zsh ~/.zshrc add-deadline"
+    echo "Remove deadlines: \$ zsh ~/.zshrc remove-deadline"
     exit 1
 fi # finish after if/else branch
 
-# Display deadlines on terminal startup.
-if [[ ${#deadlines[@]} -gt 0 ]]; then
-    echo "<< DEADLINE REMINDER >>"
-    for project in "${(@k)deadlines}"; do
-        local time_left=(${(s: :)deadlines[$project]}) # Syntax: (s: :) where s is split extension in zsh, ':' is string delimiter
-        local days=${time_left[1]}
-        local months=${time_left[2]}
-        local years=${time_left[3]}
-        # remove item from dict as soon as deadline passed
-        if ((days < 0)); then
-          unset "deadlines[$project]"
-        fi
-
-        # Construct output messages
-        local message="$project: "
-        ((years > 0)) && message+="$years Year(s) "
-        ((months > 0)) && message+="$months Month(s) "
-        ((days > 0)) && message+="$days Day(s) "
-        message+="Left"
-
-        echo $message
-    done
-fi
-
 # Since in config of .zshrc file, need to add ~/.zshrc after zsh
-echo -e "Add more deadlines with:\n\$ zsh ~/.zshrc add-deadline" # Syntax: -e to interpret escape sequences such as \n or \t but not \" for some reason
+echo -e "Display deadlines: \$ zsh ~/.zshrc"
+echo -e "Add more deadlines with: \$ zsh ~/.zshrc add-deadline" # Syntax: -e to interpret escape sequences such as \n or \t but not \" for some reason
+echo -e "Remove deadlines with: \$ zsh ~/.zshrc remove-deadline"
