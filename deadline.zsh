@@ -1,16 +1,66 @@
+#!/bin/zsh
+
 # DEADLINE REMINDERS
 
-# $ chmod +x deadline.zsh to make script executable then zsh deadline.zsh
+### DEVELOPMENT AND TESTING:
+# $ chmod u+x deadline.zsh so that user (you) has permission to execute the file.
+# Then, run $ zsh deadline.zsh || ./deadline.zsh
 
-# TODO:
-# - How to store long-term memory i.e., store deadlines in a file?
-# - Account for 30, 31 days in a month and leap years.
+# TODO: 
+# Deprecation feature for pre-existing deadlines (run each day)
+# Add time calculation for exact time and time zone changes
 
-# Get today's date
-today=$(date +%d/%m/%Y)
+# Json file to store deadlines (exportable for data analysis!)
+# NOTE: You want $HOME path if you've inputted in .zshrc file (UNCOMMENT LINE BELOW)
+# DEADLINE_FILE="$HOME/.deadline_reminders.json" # '.' file to hide it :)
+
+# Otherwise, for testing and development, init file in current directory (make sure file is gitignored to protect your data!)
+DEADLINE_FILE="./.deadline_reminders.json"
 
 # Declare deadlines associative array
 typeset -A deadlines # fun fact: an array is a subshell e.g., deadlines=() where $() executes commands! (I wonder why that's why we can access values by index)
+
+# Load deadlines from json file to deadlines dictionary-like array
+load_deadlines() {
+    # Create file if it doesn't exist
+    if [[ ! -f "$DEADLINE_FILE" ]]; then
+        echo "Couldn't find file $DEADLINE_FILE"
+        echo "Creating file..."
+        echo "{}" > "$DEADLINE_FILE" # write empty json object to file
+        return
+    fi
+    # Read JSON file and parse into associative array
+    echo "Loading deadlines from $DEADLINE_FILE..."
+    local json_content=$(cat "$DEADLINE_FILE")
+
+    # Skip if file is empty
+    if [[ -z "$json_content" ]]; then
+        echo "No content found."
+        return
+    fi
+
+    # JSON data format: "project_name": [days, months, years]
+    while IFS='"' read -r line; do
+        # IFS will not work properly if there is leading && trailing whitespace.
+        line=$(echo "$line" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//') # thus we trim :)
+
+        # Parse the line using awk
+        project=$(echo $line | awk -F'"' '{print $2}')
+        value=$(echo $line | awk -F'[][]' '{print $2}' | tr -d ' ') # tr -d ' ' is to remove whitespace from extracted values
+        
+        # if project and value are not empty, then...
+        if [[ -n "$project" && -n $value ]]; then
+            IFS=',' read -r -A values <<< "$value" # <<< to input string
+            deadlines[$project]="${values[@]}"
+        fi
+    done < "$DEADLINE_FILE" # < to input file in via terminal.
+}
+
+load_deadlines
+
+### OFFICIAL START OF SCRIPT
+# Get today's date
+today=$(date +%d/%m/%Y)
 
 # Helper: Validate and parse date
 get_date() {
@@ -29,6 +79,30 @@ is_leap_year() {
     # The leap year paradox: If divisible by 4 leap year (but divisible by 100 and not divisible by 400 then not leap year)
     # 0 == success, 1 == failure
     ((year % 400 == 0 || (year % 4 == 0 && year % 100 != 0))) && return 0 || return 1
+}
+
+# Helper: Save deadlines to file
+save_deadlines() {
+    # Create JSON structure
+    local json="{"
+    local first=true
+    
+    for project in "${(@k)deadlines}"; do
+        if [[ "$first" == true ]]; then
+            first=false
+        else
+            json+=","
+        fi
+        # Split the deadline value into an array
+        local values=(${=deadlines[$project]})
+        # Add proper newline and indentation
+        json+="\n\t$project: [${values[1]}, ${values[2]}, ${values[3]}]"
+    done
+    
+    json+="\n}"
+    
+    # Save to file with proper newlines
+    echo $json > "$DEADLINE_FILE"
 }
 
 get_days_in_month() {
@@ -79,7 +153,8 @@ append_deadline_to_deadlines() {
     fi
 
     # Add to deadlines dictionary    
-		deadlines["$project_name"]="$day_diff $month_diff $year_diff"
+	deadlines["$project_name"]="$day_diff $month_diff $year_diff"
+    save_deadlines
 }
 
 # Display deadlines on terminal startup.
@@ -111,10 +186,19 @@ display_deadlines() {
     fi
 }
 
+display_usage() {
+    # Show available commands
+    echo -e "\nHow to use terminal reminder script:"
+    echo "Display deadlines: $ zsh ~/.zshrc"
+    echo "Add deadlines: $ zsh ~/.zshrc add-deadline"
+    echo "Remove deadlines: $ zsh ~/.zshrc remove-deadline"
+}
+
 # Command-line interface for adding deadlines
 # global $1 (i.e., not $1 in functions) are direct inputs in cli :)
 if [[ $1 == "" ]]; then
     display_deadlines
+    display_usage
 elif [[ $1 == "add-deadline" ]]; then
     echo "<< ADD DEADLINE >>"
     # For some reason, read flags -p && -a don't work
@@ -123,9 +207,6 @@ elif [[ $1 == "add-deadline" ]]; then
     read item_input 
     # Syntax: Could split(" ") using parameter expansion '#' == removeBefore || '%' == removeAfter but using shorthand is better
     [[ "${item_input[0]//[[:space:]]/}" == "--finish" ]] && break # need ;;?
-
-    # Validate input
-    echo "$item_input"
     
     split_input=(${(s: :)item_input})
 
@@ -140,17 +221,10 @@ elif [[ $1 == "remove-deadline" ]]; then
     echo "<< REMOVE DEADLINE >>"
     echo "Input the project name to remove:"
     read project_name
-    unset "deadlines[$project_name]"
+    unset "deadlines[$project_name]" || echo "deadline not found"
     display_deadlines
+    save_deadlines
 else
-    echo "Usage:"
-    echo "Display deadlines: \$ zsh ~/.zshrc"
-    echo "Add deadlines: \$ zsh ~/.zshrc add-deadline"
-    echo "Remove deadlines: \$ zsh ~/.zshrc remove-deadline"
+    display_usage
     exit 1
 fi # finish after if/else branch
-
-# Since in config of .zshrc file, need to add ~/.zshrc after zsh
-echo -e "Display deadlines: \$ zsh ~/.zshrc"
-echo -e "Add more deadlines with: \$ zsh ~/.zshrc add-deadline" # Syntax: -e to interpret escape sequences such as \n or \t but not \" for some reason
-echo -e "Remove deadlines with: \$ zsh ~/.zshrc remove-deadline"
